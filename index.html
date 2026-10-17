@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>EvidenciaPro</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="EvidenciaPro">
+<meta name="theme-color" content="#0b6b44">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='36' fill='%230b6b44'/%3E%3Ccircle cx='90' cy='96' r='38' fill='none' stroke='white' stroke-width='12'/%3E%3Crect x='58' y='42' width='64' height='22' rx='6' fill='white'/%3E%3Ccircle cx='90' cy='96' r='14' fill='white'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Atkinson+Hyperlegible:wght@400;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+/* Layout: una columna de campo; tabla de control → estación → fotos identificadas; botón de cámara fijo al pie */
+:root{
+  --bg:#f3f5f2; --surface:#ffffff; --ink:#14201a; --muted:#5b6b62; --line:#d5ddd8;
+  --accent:#0b6b44; --accent-ink:#ffffff; --warn:#a8510f; --bad:#b3261e; --ok:#0b6b44;
+  --display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --body:"Atkinson Hyperlegible",system-ui,-apple-system,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#0e1512; --surface:#16211c; --ink:#e6eee9; --muted:#93a59b; --line:#2a3a32;
+  --accent:#2fbf7f; --accent-ink:#06130d; --warn:#f0954a; --bad:#ff7a6e; --ok:#2fbf7f; color-scheme:dark}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:16px/1.45 var(--body);
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:calc(120px + env(safe-area-inset-bottom,0px));
+  -webkit-tap-highlight-color:transparent}
+.wrap{max-width:680px;margin:0 auto;padding-inline:max(16px,env(safe-area-inset-left,0px)) max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:20px}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-block:14px 0;flex-wrap:wrap}
+h1{font:700 30px/1 var(--display);letter-spacing:.5px;margin:0;text-transform:uppercase}
+h1 span{color:var(--accent)}
+.tags{display:flex;gap:6px;flex-wrap:wrap}
+.tag{font:500 11px var(--mono);padding:5px 9px;border-radius:99px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.tag.on{color:var(--ok);border-color:var(--ok)}
+section{display:flex;flex-direction:column;gap:10px}
+h2{font:600 15px var(--display);letter-spacing:1.4px;text-transform:uppercase;color:var(--muted);margin:0;display:flex;justify-content:space-between;gap:8px}
+label.f{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted);min-width:0}
+input,select{font:16px var(--body);color:var(--ink);background:var(--surface);border:1.5px solid var(--line);border-radius:10px;padding:11px 12px;width:100%;min-width:0}
+input[type=checkbox]{width:auto}
+input:focus,select:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.btn{font:700 16px var(--body);padding:13px;border-radius:12px;border:1.5px solid var(--accent);background:transparent;color:var(--accent);cursor:pointer;text-align:center}
+.btn.solid{background:var(--accent);color:var(--accent-ink)}
+.btn.sm{font-size:13px;padding:7px 10px;border-radius:8px}
+.btn:disabled{opacity:.45}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.progress{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.bar{height:10px;border-radius:99px;background:var(--line);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent);width:0;transition:width .3s}
+.big{font:700 26px var(--display);font-variant-numeric:tabular-nums}
+.small{font-size:13px;color:var(--muted)}
+.faltan{font:500 12px var(--mono);color:var(--muted);max-height:9em;overflow:auto;word-break:break-word}
+.list{display:flex;flex-direction:column;gap:8px}
+.item{display:grid;grid-template-columns:72px 1fr;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:8px}
+.item img{width:72px;height:72px;object-fit:cover;border-radius:8px;display:block}
+.item .body{min-width:0;display:flex;flex-direction:column;gap:4px}
+.nm{font:500 13px var(--mono);word-break:break-all}
+.det{font-size:13px;color:var(--muted)}
+.rowx{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.pill{font:700 11px var(--body);text-transform:uppercase;letter-spacing:.6px;padding:3px 8px;border-radius:99px;border:1px solid currentColor}
+.p-ok{color:var(--ok)} .p-rev{color:var(--warn)} .p-err{color:var(--bad)} .p-pend{color:var(--muted)}
+.empty{color:var(--muted);font-size:14px;padding:16px;border:1.5px dashed var(--line);border-radius:12px;text-align:center}
+details{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+details summary{font:600 16px var(--display);letter-spacing:1px;text-transform:uppercase;cursor:pointer}
+details .in{display:flex;flex-direction:column;gap:12px;margin-top:12px}
+.hint{font-size:13px;color:var(--muted);margin:0}
+.code{font:500 12px var(--mono);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px;overflow-x:auto;white-space:nowrap}
+.camera{position:fixed;left:0;right:0;bottom:0;padding:12px max(16px,env(safe-area-inset-right,0px)) calc(12px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));background:linear-gradient(transparent,var(--bg) 30%)}
+.camera .in{display:grid;grid-template-columns:2fr 1fr;gap:10px;max-width:680px;margin:0 auto}
+.camera label{display:flex;align-items:center;justify-content:center;gap:8px;font:700 21px var(--display);letter-spacing:1.4px;text-transform:uppercase;padding:17px 10px;border-radius:16px;cursor:pointer;text-align:center}
+.camera .shot{background:var(--accent);color:var(--accent-ink);box-shadow:0 6px 20px rgba(0,0,0,.18)}
+.camera .lib{background:var(--surface);color:var(--accent);border:1.5px solid var(--accent);font-size:17px}
+.camera input{display:none}
+.toast{position:fixed;left:50%;top:calc(14px + env(safe-area-inset-top,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:14px;max-width:90vw;z-index:20}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Evidencia<span>Pro</span></h1>
+    <div class="tags"><span id="tTabla" class="tag">Tabla: —</span><span id="tIA" class="tag">IA: sin clave</span><span id="tDbx" class="tag">Dropbox: no</span></div>
+  </header>
+
+  <section>
+    <h2>Estación del recorrido</h2>
+    <select id="estacion"><option value="">Carga la tabla de control en Configuración</option></select>
+    <div class="progress">
+      <div class="rowx" style="justify-content:space-between"><span class="big" id="pNum">0 / 0</span><span class="small">señales de la tabla con evidencia</span></div>
+      <div class="bar"><i id="pBar"></i></div>
+      <details style="padding:0;border:0;background:none"><summary class="small" style="font:13px var(--body);text-transform:none;letter-spacing:0">Ver señales sin foto</summary><div class="faltan" id="faltan"></div></details>
+    </div>
+  </section>
+
+  <section>
+    <h2><span>Fotos</span><span id="cnt"></span></h2>
+    <div class="grid2">
+      <button class="btn solid" id="btnSubir">Subir a Dropbox</button>
+      <button class="btn" id="btnZip">Descargar ZIP</button>
+    </div>
+    <button class="btn sm" id="btnIdent" hidden>Identificar pendientes</button>
+    <div class="list" id="lista"></div>
+  </section>
+
+  <details id="cfg">
+    <summary>Configuración</summary>
+    <div class="in">
+      <label class="f">1. Tabla de control (Excel o CSV)<input type="file" id="tabla" accept=".xlsx,.xls,.csv"></label>
+      <div id="mapeo" hidden class="in" style="margin:0">
+        <label class="f">Columna de estación<select id="colEst"></select></label>
+        <label class="f">Columnas que describen la señal (la IA las usa para reconocerla)<select id="colDesc" multiple size="5"></select></label>
+        <label class="f">Formato del nombre de archivo
+          <input id="formato" placeholder="{CLAVE}">
+        </label>
+        <p class="hint">Usa los nombres de columna entre llaves. Ej.: <span class="code" style="display:inline">{ESTACION}_{CLAVE}</span>. Ejemplo con la primera fila: <b id="ejNombre"></b></p>
+      </div>
+      <label class="f">2. Clave de API de Claude (console.anthropic.com)<input id="apiKey" type="password" placeholder="sk-ant-..." autocomplete="off"></label>
+      <label class="f">3. App key de Dropbox<input id="appKey" placeholder="ej. a1b2c3d4e5f6g7h" autocomplete="off"></label>
+      <div class="grid2"><button class="btn solid" id="btnConectar">Conectar Dropbox</button><button class="btn" id="btnDesconectar">Desconectar</button></div>
+      <label class="f">Carpeta del proyecto en Dropbox<input id="proyecto" placeholder="EvidenciaPro"></label>
+      <label class="f" style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" id="sello"> Imprimir nombre y fecha sobre la foto al subir/descargar</label>
+      <button class="btn" id="btnLimpiar">Quitar del teléfono las fotos ya subidas</button>
+    </div>
+  </details>
+</div>
+
+<div class="camera"><div class="in">
+  <label class="shot" for="foto">&#9673; Tomar foto<input id="foto" type="file" accept="image/*" capture="environment"></label>
+  <label class="lib" for="fotos">Del carrete<input id="fotos" type="file" accept="image/*" multiple></label>
+</div></div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+const MODEL="claude-sonnet-5-5";
+const $=id=>document.getElementById(id);
+const ls={get(k,d){try{const v=localStorage.getItem(k);return v===null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+const norm=s=>String(s??"").normalize("NFD").replace(/[̀-ͯ]/g,"").trim();
+const slug=s=>norm(s).toUpperCase().replace(/[^A-Z0-9]+/g,"-").replace(/^-|-$/g,"");
+const safeFile=s=>norm(s).replace(/[\/\\:*?"<>|#%]+/g,"-").replace(/\s+/g,"_").replace(/_+/g,"_");
+const pad=(n,l=2)=>String(n).padStart(l,"0");
+const stamp=d=>d.getFullYear()+pad(d.getMonth()+1)+pad(d.getDate())+"-"+pad(d.getHours())+pad(d.getMinutes());
+let tt;function toast(m){const t=$("toast");t.textContent=m;t.hidden=false;clearTimeout(tt);tt=setTimeout(()=>t.hidden=true,3500);}
+
+// ---------- IndexedDB ----------
+let DB;
+function dbOpen(){return new Promise((res,rej)=>{const r=indexedDB.open("evidenciapro2",1);
+  r.onupgradeneeded=()=>{r.result.createObjectStore("fotos",{keyPath:"id"});r.result.createObjectStore("cfg")};
+  r.onsuccess=()=>{DB=r.result;res()};r.onerror=()=>rej(r.error);});}
+const st=(s,m)=>DB.transaction(s,m).objectStore(s);
+const req=r=>new Promise((res,rej)=>{r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)});
+const dbAll=async()=>(await req(st("fotos","readonly").getAll())).sort((a,b)=>a.ts-b.ts);
+const dbPut=o=>req(st("fotos","readwrite").put(o));
+const dbDel=id=>req(st("fotos","readwrite").delete(id));
+const cfgGet=k=>req(st("cfg","readonly").get(k));
+const cfgSet=(k,v)=>req(st("cfg","readwrite").put(v,k));
+
+// ---------- tabla de control ----------
+let T={headers:[],rows:[],colEst:"",colDesc:[],formato:""};
+const guess=(hs,re)=>hs.find(h=>re.test(norm(h).toLowerCase()))||"";
+$("tabla").addEventListener("change",async e=>{
+  const f=e.target.files[0];if(!f)return;
+  try{
+    const wb=XLSX.read(await f.arrayBuffer(),{type:"array"});
+    const sh=wb.Sheets[wb.SheetNames[0]];
+    const raw=XLSX.utils.sheet_to_json(sh,{header:1,defval:"",raw:false});
+    let hi=raw.findIndex(r=>r.filter(c=>String(c).trim()).length>=2);
+    const headers=raw[hi].map((h,i)=>String(h).trim()||("COL"+(i+1)));
+    const rows=raw.slice(hi+1).filter(r=>r.some(c=>String(c).trim())).map(r=>Object.fromEntries(headers.map((h,i)=>[h,String(r[i]??"").trim()])));
+    const colName=guess(headers,/nombre|archivo|clave|codigo|id\b|folio/);
+    T={headers,rows,colEst:guess(headers,/estacion|station/),
+       colDesc:headers.filter(h=>/senal|tipo|leyenda|descrip|ubicacion|texto|pictograma|nivel|zona/.test(norm(h).toLowerCase())),
+       formato:colName?`{${colName}}`:`{${headers[0]}}`};
+    if(!T.colDesc.length)T.colDesc=headers.filter(h=>h!==T.colEst).slice(0,4);
+    await cfgSet("tabla",T);mapeoUI();await estacionesUI();toast(`Tabla cargada: ${rows.length} señales`);
+  }catch(err){toast("No pude leer la tabla: "+err.message)}
+  e.target.value="";
+});
+function mapeoUI(){
+  $("mapeo").hidden=!T.rows.length;
+  $("tTabla").textContent=T.rows.length?`Tabla: ${T.rows.length}`:"Tabla: —";$("tTabla").classList.toggle("on",!!T.rows.length);
+  if(!T.rows.length)return;
+  $("colEst").innerHTML='<option value="">(sin columna de estación)</option>'+T.headers.map(h=>`<option ${h===T.colEst?"selected":""}>${esc(h)}</option>`).join("");
+  $("colDesc").innerHTML=T.headers.map(h=>`<option ${T.colDesc.includes(h)?"selected":""}>${esc(h)}</option>`).join("");
+  $("formato").value=T.formato;$("ejNombre").textContent=nombreDe(T.rows[0]);
+}
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function nombreDe(row){let n=T.formato.replace(/\{([^}]+)\}/g,(_,k)=>row[k]??"");n=safeFile(n)||"SIN-NOMBRE";return /\.jpe?g$/i.test(n)?n:n+".jpg";}
+$("colEst").onchange=async e=>{T.colEst=e.target.value;await cfgSet("tabla",T);estacionesUI();};
+$("colDesc").onchange=async e=>{T.colDesc=[...e.target.selectedOptions].map(o=>o.value);await cfgSet("tabla",T);};
+$("formato").oninput=async e=>{T.formato=e.target.value;$("ejNombre").textContent=nombreDe(T.rows[0]);await cfgSet("tabla",T);};
+const rowsDe=est=>T.rows.map((r,i)=>({i,r})).filter(x=>!T.colEst||!est||x.r[T.colEst]===est);
+async function estacionesUI(){
+  const sel=$("estacion");
+  if(!T.rows.length){sel.innerHTML='<option value="">Carga la tabla de control en Configuración</option>';return progreso();}
+  const ests=T.colEst?[...new Set(T.rows.map(r=>r[T.colEst]).filter(Boolean))]:[];
+  sel.innerHTML=ests.length?ests.map(e=>`<option>${esc(e)}</option>`).join(""):'<option value="">Todas las señales</option>';
+  const prev=ls.get("estacion","");if(ests.includes(prev))sel.value=prev;
+  progreso();
+}
+$("estacion").onchange=e=>{ls.set("estacion",e.target.value);progreso();render();};
+
+// ---------- fotos ----------
+function loadImg(blob){return new Promise((res,rej)=>{const u=URL.createObjectURL(blob);const i=new Image();i.onload=()=>{res(i);URL.revokeObjectURL(u)};i.onerror=()=>rej(new Error("imagen no válida"));i.src=u;});}
+async function resize(blob,max,q){const img=await loadImg(blob);const k=Math.min(1,max/Math.max(img.naturalWidth,img.naturalHeight));
+  const c=document.createElement("canvas");c.width=Math.round(img.naturalWidth*k);c.height=Math.round(img.naturalHeight*k);
+  c.getContext("2d").drawImage(img,0,0,c.width,c.height);return {c,blob:await new Promise(r=>c.toBlob(r,"image/jpeg",q))};}
+async function agregar(files){
+  const est=$("estacion").value;
+  for(const f of files){
+    try{const {c,blob}=await resize(f,2400,.88);
+      const t=document.createElement("canvas");const k=160/Math.max(c.width,c.height);t.width=c.width*k;t.height=c.height*k;t.getContext("2d").drawImage(c,0,0,t.width,t.height);
+      await dbPut({id:(crypto.randomUUID?crypto.randomUUID():String(Date.now()+Math.random())),ts:Date.now(),estacion:est,blob,thumb:t.toDataURL("image/jpeg",.7),
+        status:"pend",fila:null,name:"",detectado:"",estadoSenal:"",confianza:null,uploaded:false});
+    }catch(err){toast("Foto no válida: "+err.message)}
+  }
+  await render();identificarCola();
+}
+$("foto").onchange=e=>{const f=[...e.target.files];e.target.value="";if(f.length)agregar(f);};
+$("fotos").onchange=e=>{const f=[...e.target.files];e.target.value="";if(f.length)agregar(f);};
+
+// ---------- identificación con Claude ----------
+const toB64=b=>new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result.split(",")[1]);fr.readAsDataURL(b);});
+let corriendo=false;
+async function identificarCola(){
+  if(corriendo)return;const key=ls.get("apiKey","");
+  if(!key||!T.rows.length||!navigator.onLine){render();return;}
+  corriendo=true;
+  try{for(const r of (await dbAll()).filter(x=>x.status==="pend"||x.status==="err")){
+    r.status="run";await dbPut(r);render();
+    try{await identificar(r,key);}catch(e){r.status="err";r.detectado=e.message;}
+    await dbPut(r);await render();
+  }}finally{corriendo=false;}
+}
+async function identificar(r,key){
+  const cand=rowsDe(r.estacion);
+  if(!cand.length)throw new Error("La estación no tiene señales en la tabla");
+  const tabla=cand.slice(0,500).map(x=>`${x.i} | ${T.colDesc.map(h=>x.r[h]).join(" | ")}`).join("\n");
+  const {blob}=await resize(r.blob,1400,.8);
+  const prompt=`Eres inspector de señalética en un proyecto de metro. La foto muestra una señal en la estación "${r.estacion||"(sin especificar)"}".
+Identifica qué señal es y búscala en la tabla de control. Cada renglón: FILA | ${T.colDesc.join(" | ")}
+
+${tabla}
+
+Compara texto, pictograma, colores y forma de la señal. Responde SOLO con JSON, sin texto extra:
+{"fila": número de FILA o null si ninguna coincide, "confianza": 0 a 100, "detectado": "descripción breve de la señal vista", "estado": "OK" | "DAÑADA" | "ILEGIBLE" | "OBSTRUIDA"}`;
+  const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{
+    "content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+    body:JSON.stringify({model:MODEL,max_tokens:400,messages:[{role:"user",content:[
+      {type:"image",source:{type:"base64",media_type:"image/jpeg",data:await toB64(blob)}},{type:"text",text:prompt}]}]})});
+  const j=await res.json();if(!res.ok)throw new Error(j.error?.message||("Error "+res.status));
+  const txt=j.content.map(c=>c.text||"").join("");const m=txt.match(/\{[\s\S]*\}/);
+  if(!m)throw new Error("Respuesta de IA no válida");const o=JSON.parse(m[0]);
+  r.detectado=o.detectado||"";r.estadoSenal=o.estado||"";r.confianza=o.confianza??null;
+  const valida=Number.isInteger(o.fila)&&cand.some(x=>x.i===o.fila);
+  if(valida){await asignar(r,o.fila);r.status=(o.confianza??0)>=70?"ok":"rev";}else{r.fila=null;r.name="";r.status="rev";}
+}
+async function asignar(r,fila){
+  r.fila=fila;let base=nombreDe(T.rows[fila]).replace(/\.jpg$/i,"");
+  const usados=new Set((await dbAll()).filter(x=>x.id!==r.id&&x.name).map(x=>x.name));
+  let n=base+".jpg",k=2;while(usados.has(n))n=`${base}_${pad(k++)}.jpg`;r.name=n;
+}
+
+// ---------- lista y avance ----------
+const etiqueta={ok:["Identificada","p-ok"],rev:["Revisar","p-rev"],err:["Error","p-err"],pend:["En espera","p-pend"],run:["Identificando…","p-pend"]};
+async function render(){
+  const est=$("estacion").value;const all=await dbAll();
+  const vis=all.filter(r=>!T.colEst||!est||r.estacion===est).reverse();
+  const listos=all.filter(r=>r.name&&!r.uploaded).length;
+  $("cnt").textContent=vis.length?`${vis.length} en esta estación`:"";
+  $("btnSubir").textContent=listos?`Subir a Dropbox (${listos})`:"Subir a Dropbox";
+  $("btnSubir").disabled=!listos;$("btnZip").disabled=!all.some(r=>r.name);
+  const pend=all.filter(r=>r.status==="pend"||r.status==="err").length;
+  $("btnIdent").hidden=!pend;$("btnIdent").textContent=`Identificar pendientes (${pend})`;
+  const L=$("lista");L.innerHTML="";
+  if(!vis.length)L.innerHTML=`<div class="empty">${T.rows.length?'Toma las fotos de las señales. Cada una se identifica y se nombra según la tabla de control.':'Primero carga la tabla de control y tu clave de Claude en Configuración.'}</div>`;
+  const cand=rowsDe(est);
+  vis.forEach(r=>{const d=document.createElement("div");d.className="item";const [lab,cls]=etiqueta[r.status]||etiqueta.pend;
+    d.innerHTML=`<img alt="" src="${r.thumb}"><div class="body">
+      <div class="nm">${esc(r.name||"Sin nombre todavía")}</div>
+      <div class="det">${esc([r.detectado,r.estadoSenal&&r.estadoSenal!=="OK"?"Estado: "+r.estadoSenal:""].filter(Boolean).join(" · "))}</div>
+      <div class="rowx"><span class="pill ${cls}">${lab}${r.confianza!=null&&r.status!=="err"?" "+r.confianza+"%":""}</span>${r.uploaded?'<span class="pill p-ok">Subida</span>':""}
+        <button class="btn sm" data-a="cambiar">Cambiar</button><button class="btn sm" data-a="retry">Reintentar</button><button class="btn sm" data-a="del">Eliminar</button></div>
+      <select hidden data-a="sel"><option value="">Elige la señal correcta…</option>${cand.map(x=>`<option value="${x.i}" ${x.i===r.fila?"selected":""}>${esc(nombreDe(x.r).replace(/\.jpg$/,"")+" — "+T.colDesc.map(h=>x.r[h]).filter(Boolean).join(" · "))}</option>`).join("")}</select>
+    </div>`;
+    const sel=d.querySelector("select");
+    d.querySelector('[data-a=cambiar]').onclick=()=>{sel.hidden=!sel.hidden;};
+    sel.onchange=async()=>{if(sel.value==="")return;await asignar(r,+sel.value);r.status="ok";r.confianza=100;r.detectado="Asignada a mano";r.uploaded=false;await dbPut(r);render();};
+    d.querySelector('[data-a=retry]').onclick=async()=>{r.status="pend";await dbPut(r);identificarCola();};
+    const del=d.querySelector('[data-a=del]');
+    del.onclick=async()=>{if(del.dataset.c){await dbDel(r.id);render();}else{del.dataset.c=1;del.textContent="¿Seguro?";setTimeout(()=>{del.dataset.c="";del.textContent="Eliminar"},3000)}};
+    L.appendChild(d);});
+  progreso(all);
+}
+async function progreso(all){
+  if(!DB)return;all=all||await dbAll();const cand=rowsDe($("estacion").value);
+  const con=new Set(all.filter(r=>r.fila!=null).map(r=>r.fila));
+  const hechas=cand.filter(x=>con.has(x.i)).length;
+  $("pNum").textContent=`${hechas} / ${cand.length}`;$("pBar").style.width=cand.length?(100*hechas/cand.length)+"%":"0";
+  const f=cand.filter(x=>!con.has(x.i));
+  $("faltan").textContent=f.length?f.map(x=>nombreDe(x.r).replace(/\.jpg$/,"")).join(" · "):"Todas las señales tienen foto.";
+}
+
+// ---------- exportar ----------
+async function final(r){
+  if(!ls.get("sello",false))return r.blob;
+  const img=await loadImg(r.blob);const c=document.createElement("canvas");c.width=img.naturalWidth;c.height=img.naturalHeight;
+  const g=c.getContext("2d");g.drawImage(img,0,0);const fs=Math.max(16,Math.round(c.width/55)),band=fs*2.9;
+  g.fillStyle="rgba(0,0,0,.62)";g.fillRect(0,c.height-band,c.width,band);g.fillStyle="#fff";g.textBaseline="middle";
+  g.font=`600 ${fs}px Menlo, monospace`;g.fillText(r.name.replace(/\.jpg$/,""),fs*.6,c.height-band*.68,c.width-fs*1.2);
+  g.font=`${Math.round(fs*.85)}px -apple-system, sans-serif`;g.fillText(new Date(r.ts).toLocaleString("es-MX")+(r.estacion?" · "+r.estacion:""),fs*.6,c.height-band*.28,c.width-fs*1.2);
+  return new Promise(res=>c.toBlob(res,"image/jpeg",.88));
+}
+function csv(list){
+  const q=v=>'"'+String(v??"").replace(/"/g,'""')+'"';
+  const hs=T.headers;
+  const lines=[["ARCHIVO","ESTACION_RECORRIDO","FECHA_FOTO","ESTADO_SENAL","DETECTADO_IA","CONFIANZA",...hs].map(q).join(",")];
+  list.forEach(r=>{const row=r.fila!=null?T.rows[r.fila]:{};lines.push([r.name,r.estacion,new Date(r.ts).toLocaleString("es-MX"),r.estadoSenal,r.detectado,r.confianza,...hs.map(h=>row[h])].map(q).join(","));});
+  const con=new Set(list.map(r=>r.fila));
+  T.rows.forEach((row,i)=>{if(!con.has(i))lines.push(["SIN FOTO",row[T.colEst]||"","","","","",...hs.map(h=>row[h])].map(q).join(","));});
+  return "﻿"+lines.join("\r\n");
+}
+const proyecto=()=>slug($("proyecto").value)||"EVIDENCIAPRO";
+const carpeta=r=>slug(r.estacion)||"GENERAL";
+$("btnZip").onclick=async()=>{
+  const list=(await dbAll()).filter(r=>r.name);if(!list.length)return;
+  $("btnZip").textContent="Preparando…";
+  const zip=new JSZip();const root=zip.folder(proyecto());
+  for(const r of list)root.folder(carpeta(r)).file(r.name,await final(r));
+  root.file("CONTROL_EVIDENCIAS.csv",csv(list));
+  const blob=await zip.generateAsync({type:"blob"});
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`${proyecto()}_${stamp(new Date())}.zip`;
+  document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),60000);
+  $("btnZip").textContent="Descargar ZIP";
+};
+
+// ---------- Dropbox (OAuth PKCE) ----------
+const REDIRECT=location.origin+location.pathname;
+const b64url=buf=>btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+$("btnConectar").onclick=async()=>{
+  const key=$("appKey").value.trim();if(!key){toast("Escribe primero el App key de Dropbox");return;}
+  if(!crypto.subtle){toast("Abre la app desde una dirección https");return;}
+  const v=b64url(crypto.getRandomValues(new Uint8Array(48)));
+  const ch=b64url(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(v)));
+  ls.set("pkce",v);ls.set("appKey",key);
+  location.href="https://www.dropbox.com/oauth2/authorize?"+new URLSearchParams({client_id:key,response_type:"code",code_challenge:ch,code_challenge_method:"S256",token_access_type:"offline",redirect_uri:REDIRECT});
+};
+async function tokenReq(p){const r=await fetch("https://api.dropboxapi.com/oauth2/token",{method:"POST",body:new URLSearchParams(p)});const j=await r.json();if(!r.ok)throw new Error(j.error_description||j.error||"Error de Dropbox");return j;}
+async function finOAuth(){
+  const p=new URLSearchParams(location.search);const code=p.get("code");if(!code&&!p.get("error"))return;
+  history.replaceState(null,"",REDIRECT);if(p.get("error")){toast("Conexión cancelada");return;}
+  try{const j=await tokenReq({code,grant_type:"authorization_code",code_verifier:ls.get("pkce",""),client_id:ls.get("appKey",""),redirect_uri:REDIRECT});
+    ls.set("refresh",j.refresh_token);ls.set("access",{t:j.access_token,exp:Date.now()+(j.expires_in-60)*1000});toast("Dropbox conectado");}
+  catch(e){toast("No se pudo conectar: "+e.message)}
+}
+async function access(){const a=ls.get("access",null);if(a&&a.exp>Date.now())return a.t;const rt=ls.get("refresh",null);if(!rt)throw new Error("Conecta Dropbox en Configuración");
+  const j=await tokenReq({grant_type:"refresh_token",refresh_token:rt,client_id:ls.get("appKey","")});ls.set("access",{t:j.access_token,exp:Date.now()+(j.expires_in-60)*1000});return j.access_token;}
+const asciiJSON=o=>JSON.stringify(o).replace(/[\u007f-￿]/g,c=>"\\u"+c.charCodeAt(0).toString(16).padStart(4,"0"));
+async function dbxUpload(path,body,mode){
+  const r=await fetch("https://content.dropboxapi.com/2/files/upload",{method:"POST",headers:{"Authorization":"Bearer "+await access(),"Content-Type":"application/octet-stream","Dropbox-API-Arg":asciiJSON({path,mode,autorename:false,mute:true})},body});
+  if(!r.ok){const t=await r.text();throw new Error(r.status+" "+t.slice(0,140))}return r.json();}
+$("btnSubir").onclick=async()=>{
+  if(!ls.get("refresh",null)){toast("Primero conecta Dropbox en Configuración");$("cfg").open=true;return;}
+  const btn=$("btnSubir");btn.disabled=true;const all=await dbAll();const list=all.filter(r=>r.name&&!r.uploaded);let ok=0;
+  try{for(const r of list){btn.textContent=`Subiendo ${ok+1} de ${list.length}…`;
+      await dbxUpload(`/${proyecto()}/${carpeta(r)}/${r.name}`,await final(r),"overwrite");r.uploaded=true;await dbPut(r);ok++;}
+    await dbxUpload(`/${proyecto()}/CONTROL_EVIDENCIAS.csv`,new Blob([csv((await dbAll()).filter(r=>r.name))]),"overwrite");
+    toast(`${ok} fotos subidas a Dropbox`);
+  }catch(e){toast(`Se subieron ${ok}. Error: ${e.message}`)}
+  render();
+};
+$("btnDesconectar").onclick=()=>{["refresh","access","pkce"].forEach(k=>{try{localStorage.removeItem(k)}catch(e){}});tags();toast("Dropbox desconectado");};
+$("btnLimpiar").onclick=async()=>{const up=(await dbAll()).filter(r=>r.uploaded);for(const r of up)await dbDel(r.id);toast(`${up.length} fotos quitadas del teléfono`);render();};
+$("btnIdent").onclick=()=>{if(!ls.get("apiKey",""))return toast("Falta la clave de Claude en Configuración");if(!navigator.onLine)return toast("Sin conexión: se identificarán al volver la señal");identificarCola();};
+
+// ---------- inicio ----------
+function tags(){const ia=!!ls.get("apiKey",""),dx=!!ls.get("refresh",null);
+  $("tIA").textContent=ia?"IA: lista":"IA: sin clave";$("tIA").classList.toggle("on",ia);
+  $("tDbx").textContent=dx?"Dropbox: sí":"Dropbox: no";$("tDbx").classList.toggle("on",dx);}
+(async function(){
+  $("apiKey").value=ls.get("apiKey","");$("appKey").value=ls.get("appKey","");$("proyecto").value=ls.get("proyecto","EvidenciaPro");$("sello").checked=ls.get("sello",false);
+  $("apiKey").oninput=e=>{ls.set("apiKey",e.target.value.trim());tags();};
+  $("apiKey").onchange=()=>identificarCola();
+  $("proyecto").oninput=e=>ls.set("proyecto",e.target.value);
+  $("sello").onchange=e=>ls.set("sello",e.target.checked);
+  try{await dbOpen()}catch(e){toast("El navegador no permite guardar fotos (¿modo privado?)");return;}
+  for(const r of (await dbAll()).filter(x=>x.status==="run")){r.status="pend";await dbPut(r);}
+  T=(await cfgGet("tabla"))||T;mapeoUI();await estacionesUI();
+  await finOAuth();tags();await render();
+  if(!T.rows.length||!ls.get("apiKey",""))$("cfg").open=true;
+  window.addEventListener("online",identificarCola);identificarCola();
+})();
+</script>
+</body>
+</html>
